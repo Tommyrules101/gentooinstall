@@ -1,25 +1,26 @@
 #!/bin/bash
 set -e
 
-# =========================
-# Global selection variables
-# =========================
+# ============================================================
+# Global variables
+# ============================================================
 DISK=""
 MACHINE_TYPE=""
 INIT_SYSTEM=""
 STORAGE_LAYOUT=""
 DESKTOP_ENV=""
 FEATURES=()
-
 MOUNT="/mnt/gentoo"
 
-# =========================
-# Helper: simple menu select
-# =========================
+# ============================================================
+# Helper: simple numbered menu
+# ============================================================
 select_option() {
-    local prompt="$1"; shift
+    local title="$1"; shift
     local options=("$@")
-    echo "$prompt"
+    echo
+    echo "$title"
+    echo "--------------------------"
     local i=1
     for opt in "${options[@]}"; do
         echo "$i) $opt"
@@ -36,56 +37,54 @@ select_option() {
     done
 }
 
-# =========================
+# ============================================================
 # 1. Disk selection
-# =========================
+# ============================================================
 select_disk() {
-    echo "Select installation disk:"
     local options=("/dev/sda" "/dev/vda" "/dev/nvme0n1" "Custom")
-    local sel
-    sel=$(select_option "Disks:" "${options[@]}")
-    if [[ "$sel" == "Custom" ]]; then
+    DISK=$(select_option "Select installation disk:" "${options[@]}")
+    if [[ "$DISK" == "Custom" ]]; then
         read -rp "Enter disk path (e.g. /dev/sdb): " DISK
-    else
-        DISK="$sel"
     fi
     echo "Selected disk: $DISK"
 }
 
-# =========================
+# ============================================================
 # 2. Machine type
-# =========================
+# ============================================================
 select_machine_type() {
     local options=("Virtual Machine" "AMD PC" "Intel PC" "Laptop" "Server")
     MACHINE_TYPE=$(select_option "Machine Type:" "${options[@]}")
     echo "Selected machine type: $MACHINE_TYPE"
 }
 
-# =========================
+# ============================================================
 # 3. Init system
-# =========================
+# ============================================================
 select_init_system() {
     local options=("OpenRC" "systemd")
     INIT_SYSTEM=$(select_option "Init System:" "${options[@]}")
     echo "Selected init system: $INIT_SYSTEM"
 }
 
-# =========================
+# ============================================================
 # 4. Storage layout
-# =========================
+# ============================================================
 select_storage_layout() {
-    local options=("Default (1G EFI, 4G swap, rest root)"
-                   "VM Optimized (512M EFI, 2G swap, rest root)"
-                   "Gaming PC (1G EFI, 8G swap, rest root)"
-                   "Laptop (1G EFI, 8G swap, hibernate)"
-                   "Custom")
+    local options=(
+        "Default (1G EFI, 4G swap, rest root)"
+        "VM Optimized (512M EFI, 2G swap, rest root)"
+        "Gaming PC (1G EFI, 8G swap, rest root)"
+        "Laptop (1G EFI, 8G swap, hibernate)"
+        "Custom"
+    )
     STORAGE_LAYOUT=$(select_option "Storage Layout:" "${options[@]}")
     echo "Selected storage layout: $STORAGE_LAYOUT"
 }
 
-# =========================
+# ============================================================
 # 5. Desktop environment
-# =========================
+# ============================================================
 select_desktop_env() {
     local options=(
         "KDE Plasma (X11)"
@@ -106,10 +105,11 @@ select_desktop_env() {
     echo "Selected desktop: $DESKTOP_ENV"
 }
 
-# =========================
+# ============================================================
 # 6. Optional features
-# =========================
+# ============================================================
 select_optional_features() {
+    echo
     echo "Optional Features (comma separated indices):"
     local options=(
         "Flatpak + Flathub"
@@ -143,9 +143,9 @@ select_optional_features() {
     echo "Selected features: ${FEATURES[*]:-none}"
 }
 
-# =========================
+# ============================================================
 # Summary + confirmation
-# =========================
+# ============================================================
 show_summary() {
     echo
     echo "Installation Summary"
@@ -171,9 +171,9 @@ confirm_install() {
     done
 }
 
-# =========================
+# ============================================================
 # Partitioning logic
-# =========================
+# ============================================================
 partition_disk() {
     echo "=== Partitioning disk $DISK ==="
     parted -s "$DISK" mklabel gpt
@@ -228,9 +228,9 @@ mount_filesystems() {
     swapon "${DISK}2"
 }
 
-# =========================
+# ============================================================
 # Stage3 selection
-# =========================
+# ============================================================
 get_stage3_url() {
     if [[ "$INIT_SYSTEM" == "systemd" ]]; then
         echo "https://distfiles.gentoo.org/releases/amd64/autobuilds/latest-stage3-amd64-systemd.tar.xz"
@@ -258,9 +258,9 @@ prepare_chroot_mounts() {
     mount --make-rslave "$MOUNT/dev"
 }
 
-# =========================
-# USE flags + profile tuning
-# =========================
+# ============================================================
+# make.conf generation
+# ============================================================
 generate_make_conf() {
     echo "=== Configuring make.conf ==="
     local video="virtio"
@@ -282,9 +282,9 @@ INPUT_DEVICES="libinput"
 EOF
 }
 
-# =========================
+# ============================================================
 # Desktop + features mapping
-# =========================
+# ============================================================
 desktop_packages() {
     case "$DESKTOP_ENV" in
         KDE\ Plasma\ \(X11\))
@@ -377,9 +377,9 @@ feature_packages() {
     echo "${pkgs[*]}"
 }
 
-# =========================
+# ============================================================
 # Chroot installation
-# =========================
+# ============================================================
 run_chroot_install() {
     echo "=== Entering chroot and installing system ==="
     chroot "$MOUNT" /bin/bash <<'CHROOTEOF'
@@ -401,19 +401,12 @@ echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen
 locale-gen
 eselect locale set en_US.utf8
 
-echo "=== Writing fstab ==="
-/bin/cat <<EOF > /etc/fstab
-/dev/sda3   /       ext4    noatime     0 1
-/dev/sda1   /boot   vfat    defaults    0 2
-/dev/sda2   none    swap    sw          0 0
-EOF
-
 CHROOTEOF
 }
 
-# =========================
+# ============================================================
 # Chroot: desktop + features + bootloader + networking
-# =========================
+# ============================================================
 run_chroot_config_rest() {
     local desktop_pkgs feature_pkgs
     desktop_pkgs=$(desktop_packages)
@@ -486,9 +479,9 @@ echo "%wheel ALL=(ALL) ALL" >> /etc/sudoers
 CHROOTEOF
 }
 
-# =========================
+# ============================================================
 # Unmount and finish
-# =========================
+# ============================================================
 cleanup_unmount() {
     echo "=== Unmounting (Handbook-safe) ==="
     umount -l "$MOUNT/dev" || true
@@ -498,42 +491,9 @@ cleanup_unmount() {
     echo "=== Installation complete. You can reboot now. ==="
 }
 
-# =========================
+# ============================================================
 # Main installer flow
-# =========================
-main_menu() {
-    while true; do
-        echo
-        echo "Gentoo Universal Installer"
-        echo "--------------------------"
-        echo "1) Start new installation"
-        echo "2) Exit"
-        read -rp "#? " choice
-        case "$choice" in
-            1)
-                select_disk
-                select_machine_type
-                select_init_system
-                select_storage_layout
-                select_desktop_env
-                select_optional_features
-                show_summary
-                if confirm_install; then
-                    run_install
-                else
-                    echo "Installation cancelled. Returning to main menu."
-                fi
-                ;;
-            2)
-                exit 0
-                ;;
-            *)
-                echo "Invalid choice."
-                ;;
-        esac
-    done
-}
-
+# ============================================================
 run_install() {
     partition_disk
     mount_filesystems
@@ -545,7 +505,10 @@ run_install() {
     cleanup_unmount
 }
 
-# =========================
-# Entry point
-# =========================
-main_menu
+main_menu() {
+    while true; do
+        echo
+        echo "Gentoo Universal Installer"
+        echo "=========================="
+        echo "1) Start new installation"
+        echo "2) Exit"
