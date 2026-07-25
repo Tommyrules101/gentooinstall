@@ -376,7 +376,6 @@ feature_packages() {
     done
     echo "${pkgs[*]}"
 }
-
 # ============================================================
 # Chroot installation
 # ============================================================
@@ -441,7 +440,6 @@ if [[ "$INIT_SYSTEM" == "OpenRC" ]]; then
         rc-update add lightdm default || true
     fi
 else
-    # systemd
     if echo "${FEATURES[*]}" | grep -q "NetworkManager"; then
         systemctl enable NetworkManager
     fi
@@ -512,3 +510,4 @@ main_menu() {
         echo "=========================="
         echo "1) Start new installation"
         echo "2) Exit"
+        read -rp "#? " choice
