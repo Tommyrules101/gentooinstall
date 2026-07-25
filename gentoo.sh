@@ -511,3 +511,34 @@ main_menu() {
         echo "1) Start new installation"
         echo "2) Exit"
         read -rp "#? " choice
+            case "$choice" in
+            1)
+                select_disk
+                select_machine_type
+                select_init_system
+                select_storage_layout
+                select_desktop_env
+                select_optional_features
+                show_summary
+
+                if confirm_install; then
+                    run_install
+                else
+                    echo "Installation cancelled. Returning to main menu."
+                fi
+                ;;
+            2)
+                echo "Exiting installer."
+                exit 0
+                ;;
+            *)
+                echo "Invalid choice."
+                ;;
+        esac
+    done
+}
+
+# ============================================================
+# Entry point
+# ============================================================
+main_menu
