@@ -18,7 +18,7 @@ mkfs.vfat -F32 ${DISK}1
 mkswap ${DISK}2
 mkfs.ext4 ${DISK}3
 
-echo "=== Mounting partitions (Handbook) ==="
+echo "=== Mounting partitions ==="
 mount ${DISK}3 $MOUNT
 mkdir -p $MOUNT/boot
 mount ${DISK}1 $MOUNT/boot
@@ -27,13 +27,13 @@ swapon ${DISK}2
 echo "=== Moving into /mnt/gentoo ==="
 cd /mnt/gentoo
 
-echo "=== Downloading Stage3 OpenRC (Handbook) ==="
+echo "=== Downloading Stage3 OpenRC ==="
 wget https://distfiles.gentoo.org/releases/amd64/autobuilds/20260719T170103Z/stage3-amd64-openrc-20260719T170103Z.tar.xz -O stage3.tar.xz
 
-echo "=== Extracting Stage3 (Handbook) ==="
+echo "=== Extracting Stage3 ==="
 tar xpvf stage3.tar.xz --xattrs-include='*.*' --numeric-owner
 
-echo "=== Copying DNS (Handbook) ==="
+echo "=== Copying DNS ==="
 cp -L /etc/resolv.conf $MOUNT/etc/
 
 echo "=== Mounting system dirs (Handbook required) ==="
@@ -43,16 +43,16 @@ mount --make-rslave $MOUNT/sys
 mount --rbind /dev $MOUNT/dev
 mount --make-rslave $MOUNT/dev
 
-echo "=== Chrooting (Handbook) ==="
+echo "=== Chrooting into Gentoo ==="
 chroot /mnt/gentoo /bin/bash <<'CHROOTEOF'
 source /etc/profile
 export PS1="(gentoo-chroot) $PS1"
 
-echo "=== Configuring make.conf ==="
+echo "=== Configuring make.conf with correct USE flags ==="
 cat <<EOF > /etc/portage/make.conf
 COMMON_FLAGS="-O2 -pipe"
 MAKEOPTS="-j$(nproc)"
-USE="kde plasma elogind networkmanager pipewire pulseaudio -alsa"
+USE="X X11 kde qt5 policykit networkmanager pipewire pulseaudio -alsa flatpak packagekit appstream"
 VIDEO_CARDS="virtio"
 INPUT_DEVICES="libinput"
 EOF
@@ -60,11 +60,11 @@ EOF
 echo "=== Syncing Portage ==="
 emerge --sync
 
-echo "=== Installing dist-kernel (Handbook recommended) ==="
+echo "=== Installing dist-kernel ==="
 emerge sys-kernel/gentoo-kernel-bin
 
 echo "=== Installing system tools ==="
-emerge grub efibootmgr networkmanager sudo vim
+emerge sys-boot/grub efibootmgr networkmanager wpa_supplicant nmtui sudo vim
 
 echo "=== Setting timezone ==="
 echo "America/New_York" > /etc/timezone
@@ -75,15 +75,21 @@ echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen
 locale-gen
 eselect locale set en_US.utf8
 
-echo "=== Writing fstab (Handbook) ==="
+echo "=== Writing fstab ==="
 cat <<EOF > /etc/fstab
 /dev/sda3   /       ext4    noatime     0 1
 /dev/sda1   /boot   vfat    defaults    0 2
 /dev/sda2   none    swap    sw          0 0
 EOF
 
-echo "=== Installing KDE Plasma + Discover ==="
-emerge kde-plasma/plasma-meta kde-plasma/sddm kde-apps/discover
+echo "=== Installing KDE Plasma X11 + Discover + Polkit ==="
+emerge kde-plasma/plasma-meta \
+       kde-plasma/sddm \
+       kde-plasma/sddm-kcm \
+       kde-plasma/polkit-kde-agent \
+       kde-apps/discover \
+       kde-apps/dolphin \
+       kde-apps/konsole
 
 echo "=== Installing PipeWire ==="
 emerge pipewire wireplumber pipewire-alsa pipewire-pulse pipewire-jack
@@ -92,11 +98,15 @@ echo "=== Installing Google Chrome ==="
 echo 'www-client/google-chrome google-chrome' >> /etc/portage/package.license
 emerge www-client/google-chrome
 
+echo "=== Installing Flatpak + Discover backend ==="
+emerge flatpak packagekit appstream
+flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+
 echo "=== Enabling services ==="
 rc-update add NetworkManager default
 rc-update add sddm default
 
-echo "=== Installing GRUB (Handbook) ==="
+echo "=== Installing GRUB EFI ==="
 grub-install --target=x86_64-efi --efi-directory=/boot
 grub-mkconfig -o /boot/grub/grub.cfg
 
