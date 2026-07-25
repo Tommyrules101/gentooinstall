@@ -4,6 +4,9 @@ set -e
 DISK="/dev/sda"
 MOUNT="/mnt/gentoo"
 
+echo "=== Creating /mnt/gentoo ==="
+mkdir -p /mnt/gentoo
+
 echo "=== Partitioning Disk ==="
 parted -s $DISK mklabel gpt
 parted -s $DISK mkpart ESP fat32 1MiB 1025MiB
@@ -15,6 +18,7 @@ mkfs.vfat -F32 ${DISK}1
 mkswap ${DISK}2
 mkfs.ext4 ${DISK}3
 
+echo "=== Mounting partitions ==="
 mount ${DISK}3 $MOUNT
 mkdir -p $MOUNT/boot
 mount ${DISK}1 $MOUNT/boot
