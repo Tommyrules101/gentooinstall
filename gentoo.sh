@@ -7,7 +7,7 @@ MOUNT="/mnt/gentoo"
 echo "=== Creating /mnt/gentoo ==="
 mkdir -p /mnt/gentoo
 
-echo "=== Partitioning Disk ==="
+echo "=== Partitioning Disk (Handbook layout) ==="
 parted -s $DISK mklabel gpt
 parted -s $DISK mkpart ESP fat32 1MiB 1025MiB
 parted -s $DISK set 1 esp on
@@ -18,7 +18,7 @@ mkfs.vfat -F32 ${DISK}1
 mkswap ${DISK}2
 mkfs.ext4 ${DISK}3
 
-echo "=== Mounting partitions ==="
+echo "=== Mounting partitions (Handbook) ==="
 mount ${DISK}3 $MOUNT
 mkdir -p $MOUNT/boot
 mount ${DISK}1 $MOUNT/boot
@@ -27,21 +27,23 @@ swapon ${DISK}2
 echo "=== Moving into /mnt/gentoo ==="
 cd /mnt/gentoo
 
-echo "=== Downloading Stage3 OpenRC ==="
+echo "=== Downloading Stage3 OpenRC (Handbook) ==="
 wget https://distfiles.gentoo.org/releases/amd64/autobuilds/20260719T170103Z/stage3-amd64-openrc-20260719T170103Z.tar.xz -O stage3.tar.xz
 
-echo "=== Extracting Stage3 ==="
+echo "=== Extracting Stage3 (Handbook) ==="
 tar xpvf stage3.tar.xz --xattrs-include='*.*' --numeric-owner
 
-echo "=== Copying DNS ==="
+echo "=== Copying DNS (Handbook) ==="
 cp -L /etc/resolv.conf $MOUNT/etc/
 
-echo "=== Mounting system dirs ==="
+echo "=== Mounting system dirs (Handbook required) ==="
 mount -t proc /proc $MOUNT/proc
 mount --rbind /sys $MOUNT/sys
+mount --make-rslave $MOUNT/sys
 mount --rbind /dev $MOUNT/dev
+mount --make-rslave $MOUNT/dev
 
-echo "=== Chrooting into Gentoo ==="
+echo "=== Chrooting (Handbook) ==="
 chroot /mnt/gentoo /bin/bash <<'CHROOTEOF'
 source /etc/profile
 export PS1="(gentoo-chroot) $PS1"
@@ -58,7 +60,7 @@ EOF
 echo "=== Syncing Portage ==="
 emerge --sync
 
-echo "=== Installing dist-kernel ==="
+echo "=== Installing dist-kernel (Handbook recommended) ==="
 emerge sys-kernel/gentoo-kernel-bin
 
 echo "=== Installing system tools ==="
@@ -73,7 +75,7 @@ echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen
 locale-gen
 eselect locale set en_US.utf8
 
-echo "=== Writing fstab ==="
+echo "=== Writing fstab (Handbook) ==="
 cat <<EOF > /etc/fstab
 /dev/sda3   /       ext4    noatime     0 1
 /dev/sda1   /boot   vfat    defaults    0 2
@@ -87,13 +89,14 @@ echo "=== Installing PipeWire ==="
 emerge pipewire wireplumber pipewire-alsa pipewire-pulse pipewire-jack
 
 echo "=== Installing Google Chrome ==="
+echo 'www-client/google-chrome google-chrome' >> /etc/portage/package.license
 emerge www-client/google-chrome
 
 echo "=== Enabling services ==="
 rc-update add NetworkManager default
 rc-update add sddm default
 
-echo "=== Installing GRUB ==="
+echo "=== Installing GRUB (Handbook) ==="
 grub-install --target=x86_64-efi --efi-directory=/boot
 grub-mkconfig -o /boot/grub/grub.cfg
 
@@ -108,7 +111,10 @@ echo "%wheel ALL=(ALL) ALL" >> /etc/sudoers
 
 CHROOTEOF
 
-echo "=== Unmounting ==="
+echo "=== Unmounting (Handbook safe method) ==="
+umount -l $MOUNT/dev
+umount -l $MOUNT/sys
+umount -l $MOUNT/proc
 umount -R $MOUNT
 
 echo "=== Installation Complete — Reboot Now ==="
