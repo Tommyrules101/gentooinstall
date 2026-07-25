@@ -20,21 +20,14 @@ mkdir -p $MOUNT/boot
 mount ${DISK}1 $MOUNT/boot
 swapon ${DISK}2
 
-echo "=== Downloading Stage3 ==="
-cd $MOUNT
+echo "=== Moving into /mnt/gentoo ==="
+cd /mnt/gentoo
 
-wget https://distfiles.gentoo.org/releases/amd64/autobuilds/current-stage3-amd64/stage3-amd64.tar.xz -O stage3.tar.xz
+echo "=== Downloading Stage3 OpenRC ==="
+wget https://distfiles.gentoo.org/releases/amd64/autobuilds/20260719T170103Z/stage3-amd64-openrc-20260719T170103Z.tar.xz -O stage3.tar.xz
 
+echo "=== Extracting Stage3 ==="
 tar xpvf stage3.tar.xz --xattrs-include='*.*' --numeric-owner
-
-echo "=== Configuring make.conf ==="
-cat <<EOF > $MOUNT/etc/portage/make.conf
-COMMON_FLAGS="-O2 -pipe"
-MAKEOPTS="-j$(nproc)"
-USE="kde plasma elogind networkmanager pipewire pulseaudio -alsa"
-VIDEO_CARDS="virtio"
-INPUT_DEVICES="libinput"
-EOF
 
 echo "=== Copying DNS ==="
 cp -L /etc/resolv.conf $MOUNT/etc/
@@ -44,10 +37,19 @@ mount -t proc /proc $MOUNT/proc
 mount --rbind /sys $MOUNT/sys
 mount --rbind /dev $MOUNT/dev
 
-echo "=== Entering chroot ==="
-cat <<'CHROOTEOF' | chroot /mnt/gentoo /bin/bash
+echo "=== Chrooting into Gentoo ==="
+chroot /mnt/gentoo /bin/bash <<'CHROOTEOF'
 source /etc/profile
 export PS1="(gentoo-chroot) $PS1"
+
+echo "=== Configuring make.conf ==="
+cat <<EOF > /etc/portage/make.conf
+COMMON_FLAGS="-O2 -pipe"
+MAKEOPTS="-j$(nproc)"
+USE="kde plasma elogind networkmanager pipewire pulseaudio -alsa"
+VIDEO_CARDS="virtio"
+INPUT_DEVICES="libinput"
+EOF
 
 echo "=== Syncing Portage ==="
 emerge --sync
@@ -67,7 +69,7 @@ echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen
 locale-gen
 eselect locale set en_US.utf8
 
-echo "=== Fstab ==="
+echo "=== Writing fstab ==="
 cat <<EOF > /etc/fstab
 /dev/sda3   /       ext4    noatime     0 1
 /dev/sda1   /boot   vfat    defaults    0 2
