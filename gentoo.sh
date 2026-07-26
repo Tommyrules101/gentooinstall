@@ -40,7 +40,6 @@ select_option() {
 }
 
 select_disk() {
-    clear
     local options=("/dev/sda" "/dev/vda" "/dev/nvme0n1" "Custom")
     DISK=$(select_option "Select installation disk:" "${options[@]}")
     if [[ "$DISK" == "Custom" ]]; then
@@ -50,21 +49,18 @@ select_disk() {
 }
 
 select_machine_type() {
-    clear
     local options=("Virtual Machine" "AMD PC" "Intel PC" "Laptop" "Server")
     MACHINE_TYPE=$(select_option "Machine Type:" "${options[@]}")
     echo "Selected machine type: $MACHINE_TYPE"
 }
 
 select_init_system() {
-    clear
     local options=("OpenRC" "systemd")
     INIT_SYSTEM=$(select_option "Init System:" "${options[@]}")
     echo "Selected init system: $INIT_SYSTEM"
 }
 
 select_storage_layout() {
-    clear
     local options=(
         "Default (1G EFI, 4G swap, rest root)"
         "VM Optimized (512M EFI, 2G swap, rest root)"
@@ -77,7 +73,6 @@ select_storage_layout() {
 }
 
 select_desktop_env() {
-    clear
     local options=(
         "KDE Plasma (X11)"
         "KDE Plasma (Wayland)"
@@ -98,7 +93,6 @@ select_desktop_env() {
 }
 
 select_optional_features() {
-    clear
     echo "Optional Features (comma separated indices):"
     local options=(
         "Flatpak + Flathub"
@@ -134,7 +128,6 @@ select_optional_features() {
 }
 
 select_credentials() {
-    clear
     echo "Credentials"
     echo "==========="
     read -rp "Enter root password (visible): " ROOT_PASSWORD
@@ -155,7 +148,6 @@ select_credentials() {
 }
 
 show_summary() {
-    clear
     echo "Installation Summary"
     echo "--------------------"
     echo "Disk:           $DISK"
@@ -182,7 +174,6 @@ confirm_install() {
         esac
     done
 }
-
 partition_disk() {
     echo "=== Partitioning disk $DISK ==="
     parted -s "$DISK" mklabel gpt
@@ -209,12 +200,12 @@ partition_disk() {
             ROOT_START="9217MiB"; ROOT_END="100%"
             ;;
         Custom*)
-            echo "Enter EFI start (e.g. 1MiB):"; read EFI_START
-            echo "Enter EFI end (e.g. 1025MiB):"; read EFI_END
+            echo "Enter EFI start:"; read EFI_START
+            echo "Enter EFI end:"; read EFI_END
             echo "Enter swap start:"; read SWAP_START
             echo "Enter swap end:"; read SWAP_END
             echo "Enter root start:"; read ROOT_START
-            echo "Enter root end (e.g. 100%):"; read ROOT_END
+            echo "Enter root end:"; read ROOT_END
             ;;
     esac
 
@@ -246,7 +237,7 @@ get_stage3_url() {
 }
 
 extract_stage3() {
-    echo "=== Downloading and extracting Stage3 ($INIT_SYSTEM) ==="
+    echo "=== Downloading and extracting Stage3 ==="
     cd "$MOUNT"
     local url
     url=$(get_stage3_url)
@@ -287,45 +278,18 @@ EOF
 
 desktop_packages() {
     case "$DESKTOP_ENV" in
-        KDE\ Plasma\ \(X11\))
-            echo "kde-plasma/plasma-meta kde-plasma/sddm kde-plasma/sddm-kcm kde-plasma/polkit-kde-agent kde-apps/dolphin kde-apps/konsole"
-            ;;
-        KDE\ Plasma\ \(Wayland\))
-            echo "kde-plasma/plasma-meta kde-plasma/sddm kde-plasma/sddm-kcm kde-plasma/polkit-kde-agent kde-apps/dolphin kde-apps/konsole"
-            ;;
-        GNOME)
-            echo "gnome-base/gnome gnome-base/gdm"
-            ;;
-        XFCE)
-            echo "xfce-base/xfce4 xfce-base/xfce4-meta lxde-base/lxdm"
-            ;;
-        Cinnamon)
-            echo "cinnamon gnome-base/gdm"
-            ;;
-        MATE)
-            echo "mate-base/mate mate-base/mate-desktop lxde-base/lxdm"
-            ;;
-        LXQt)
-            echo "lxqt-base/lxqt-meta lxde-base/lxdm"
-            ;;
-        Budgie)
-            echo "budgie-desktop gnome-base/gdm"
-            ;;
-        i3)
-            echo "x11-wm/i3 x11-misc/dmenu x11-misc/lightdm"
-            ;;
-        Sway)
-            echo "gui-wm/sway x11-misc/lightdm"
-            ;;
-        Openbox)
-            echo "x11-wm/openbox x11-misc/lightdm"
-            ;;
-        AwesomeWM)
-            echo "x11-wm/awesome x11-misc/lightdm"
-            ;;
-        No\ Desktop*)
-            echo ""
-            ;;
+        KDE\ Plasma*) echo "kde-plasma/plasma-meta kde-plasma/sddm kde-plasma/sddm-kcm kde-apps/dolphin kde-apps/konsole" ;;
+        GNOME) echo "gnome-base/gnome gnome-base/gdm" ;;
+        XFCE) echo "xfce-base/xfce4 xfce-base/xfce4-meta lxde-base/lxdm" ;;
+        Cinnamon) echo "cinnamon gnome-base/gdm" ;;
+        MATE) echo "mate-base/mate mate-base/mate-desktop lxde-base/lxdm" ;;
+        LXQt) echo "lxqt-base/lxqt-meta lxde-base/lxdm" ;;
+        Budgie) echo "budgie-desktop gnome-base/gdm" ;;
+        i3) echo "x11-wm/i3 x11-misc/dmenu x11-misc/lightdm" ;;
+        Sway) echo "gui-wm/sway x11-misc/lightdm" ;;
+        Openbox) echo "x11-wm/openbox x11-misc/lightdm" ;;
+        AwesomeWM) echo "x11-wm/awesome x11-misc/lightdm" ;;
+        No\ Desktop*) echo "" ;;
     esac
 }
 
@@ -333,45 +297,19 @@ feature_packages() {
     local pkgs=()
     for f in "${FEATURES[@]}"; do
         case "$f" in
-            Flatpak\ +\ Flathub)
-                pkgs+=("sys-apps/flatpak" "app-admin/packagekit" "dev-util/appstream")
-                ;;
-            Chrome)
-                pkgs+=("www-client/google-chrome")
-                ;;
-            Firefox)
-                pkgs+=("www-client/firefox")
-                ;;
-            PipeWire)
-                pkgs+=("media-video/pipewire" "media-video/wireplumber" "media-libs/pipewire-alsa" "media-libs/pipewire-jack")
-                ;;
-            NetworkManager)
-                pkgs+=("net-misc/networkmanager" "net-wireless/wpa_supplicant")
-                ;;
-            Bluetooth)
-                pkgs+=("net-wireless/bluez")
-                ;;
-            Printing\ \(CUPS\))
-                pkgs+=("net-print/cups")
-                ;;
-            GRUB\ EFI)
-                pkgs+=("sys-boot/grub" "sys-boot/efibootmgr")
-                ;;
-            systemd-boot)
-                pkgs+=("sys-boot/systemd-boot")
-                ;;
-            Timeshift)
-                pkgs+=("sys-apps/timeshift")
-                ;;
-            Steam)
-                pkgs+=("games-util/steam-launcher")
-                ;;
-            Lutris)
-                pkgs+=("games-util/lutris")
-                ;;
-            MangoHUD)
-                pkgs+=("games-util/mangohud")
-                ;;
+            Flatpak*) pkgs+=("sys-apps/flatpak" "app-admin/packagekit" "dev-util/appstream") ;;
+            Chrome) pkgs+=("www-client/google-chrome") ;;
+            Firefox) pkgs+=("www-client/firefox") ;;
+            PipeWire) pkgs+=("media-video/pipewire" "media-video/wireplumber") ;;
+            NetworkManager) pkgs+=("net-misc/networkmanager") ;;
+            Bluetooth) pkgs+=("net-wireless/bluez") ;;
+            Printing*) pkgs+=("net-print/cups") ;;
+            GRUB*) pkgs+=("sys-boot/grub" "sys-boot/efibootmgr") ;;
+            systemd-boot) pkgs+=("sys-boot/systemd-boot") ;;
+            Timeshift) pkgs+=("sys-apps/timeshift") ;;
+            Steam) pkgs+=("games-util/steam-launcher") ;;
+            Lutris) pkgs+=("games-util/lutris") ;;
+            MangoHUD) pkgs+=("games-util/mangohud") ;;
         esac
     done
     echo "${pkgs[*]}"
@@ -412,46 +350,6 @@ if [[ -n "$feature_pkgs" ]]; then
     emerge --ask=n $feature_pkgs
 fi
 
-if [[ "$INIT_SYSTEM" == "OpenRC" ]]; then
-    if echo "${FEATURES[*]}" | grep -q "NetworkManager"; then
-        rc-update add NetworkManager default
-    fi
-    if echo "$DESKTOP_ENV" | grep -q "KDE Plasma"; then
-        rc-update add sddm default || true
-    elif echo "$DESKTOP_ENV" | grep -q "GNOME"; then
-        rc-update add gdm default || true
-    elif echo "$DESKTOP_ENV" | grep -q "XFCE"; then
-        rc-update add lxdm default || true
-    elif echo "$DESKTOP_ENV" | grep -q "i3"; then
-        rc-update add lightdm default || true
-    fi
-else
-    if echo "${FEATURES[*]}" | grep -q "NetworkManager"; then
-        systemctl enable NetworkManager
-    fi
-    if echo "$DESKTOP_ENV" | grep -q "KDE Plasma"; then
-        systemctl enable sddm || true
-    elif echo "$DESKTOP_ENV" | grep -q "GNOME"; then
-        systemctl enable gdm || true
-    elif echo "$DESKTOP_ENV" | grep -q "XFCE"; then
-        systemctl enable lxdm || true
-    elif echo "$DESKTOP_ENV" | grep -q "i3"; then
-        systemctl enable lightdm || true
-    fi
-fi
-
-if echo "${FEATURES[*]}" | grep -q "GRUB EFI"; then
-    emerge --ask=n sys-boot/grub sys-boot/efibootmgr
-    grub-install --target=x86_64-efi --efi-directory=/boot
-    grub-mkconfig -o /boot/grub/grub.cfg
-elif echo "${FEATURES[*]}" | grep -q "systemd-boot"; then
-    bootctl install
-fi
-
-if echo "${FEATURES[*]}" | grep -q "Flatpak + Flathub"; then
-    flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
-fi
-
 echo "root:${ROOT_PASSWORD}" | chpasswd
 useradd -m -G wheel,audio,video "${USER_NAME}"
 echo "${USER_NAME}:${USER_PASSWORD}" | chpasswd
@@ -470,7 +368,6 @@ cleanup_unmount() {
 }
 
 run_install() {
-    clear
     echo "=== Starting installation ==="
     partition_disk
     mount_filesystems
@@ -484,9 +381,9 @@ run_install() {
 
 main_menu() {
     while true; do
-        clear
+        echo
         echo "Gentoo Universal Installer"
-        echo "=========================="
+        echo "==========================="
         echo "1) Start new installation"
         echo "2) Exit"
         flush_input
