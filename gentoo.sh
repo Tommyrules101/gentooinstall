@@ -1,9 +1,6 @@
 #!/bin/bash
 set -e
 
-# ============================================================
-# Global variables
-# ============================================================
 DISK=""
 MACHINE_TYPE=""
 INIT_SYSTEM=""
@@ -11,10 +8,14 @@ STORAGE_LAYOUT=""
 DESKTOP_ENV=""
 FEATURES=()
 MOUNT="/mnt/gentoo"
+ROOT_PASSWORD=""
+USER_NAME=""
+USER_PASSWORD=""
 
-# ============================================================
-# Helper: simple numbered menu
-# ============================================================
+flush_input() {
+    read -r -N 999999 discard 2>/dev/null || true
+}
+
 select_option() {
     local title="$1"; shift
     local options=("$@")
@@ -28,6 +29,7 @@ select_option() {
     done
     local choice
     while true; do
+        flush_input
         read -rp "#? " choice
         if [[ "$choice" =~ ^[0-9]+$ ]] && (( choice >= 1 && choice <= ${#options[@]} )); then
             echo "${options[choice-1]}"
@@ -37,10 +39,8 @@ select_option() {
     done
 }
 
-# ============================================================
-# 1. Disk selection
-# ============================================================
 select_disk() {
+    clear
     local options=("/dev/sda" "/dev/vda" "/dev/nvme0n1" "Custom")
     DISK=$(select_option "Select installation disk:" "${options[@]}")
     if [[ "$DISK" == "Custom" ]]; then
@@ -49,28 +49,22 @@ select_disk() {
     echo "Selected disk: $DISK"
 }
 
-# ============================================================
-# 2. Machine type
-# ============================================================
 select_machine_type() {
+    clear
     local options=("Virtual Machine" "AMD PC" "Intel PC" "Laptop" "Server")
     MACHINE_TYPE=$(select_option "Machine Type:" "${options[@]}")
     echo "Selected machine type: $MACHINE_TYPE"
 }
 
-# ============================================================
-# 3. Init system
-# ============================================================
 select_init_system() {
+    clear
     local options=("OpenRC" "systemd")
     INIT_SYSTEM=$(select_option "Init System:" "${options[@]}")
     echo "Selected init system: $INIT_SYSTEM"
 }
 
-# ============================================================
-# 4. Storage layout
-# ============================================================
 select_storage_layout() {
+    clear
     local options=(
         "Default (1G EFI, 4G swap, rest root)"
         "VM Optimized (512M EFI, 2G swap, rest root)"
@@ -82,10 +76,8 @@ select_storage_layout() {
     echo "Selected storage layout: $STORAGE_LAYOUT"
 }
 
-# ============================================================
-# 5. Desktop environment
-# ============================================================
 select_desktop_env() {
+    clear
     local options=(
         "KDE Plasma (X11)"
         "KDE Plasma (Wayland)"
@@ -105,11 +97,8 @@ select_desktop_env() {
     echo "Selected desktop: $DESKTOP_ENV"
 }
 
-# ============================================================
-# 6. Optional features
-# ============================================================
 select_optional_features() {
-    echo
+    clear
     echo "Optional Features (comma separated indices):"
     local options=(
         "Flatpak + Flathub"
@@ -131,6 +120,7 @@ select_optional_features() {
         echo "$i) $opt"
         ((i++))
     done
+    flush_input
     read -rp "#? " sel
     FEATURES=()
     IFS=',' read -ra idxs <<< "$sel"
@@ -143,11 +133,29 @@ select_optional_features() {
     echo "Selected features: ${FEATURES[*]:-none}"
 }
 
-# ============================================================
-# Summary + confirmation
-# ============================================================
+select_credentials() {
+    clear
+    echo "Credentials"
+    echo "==========="
+    read -rp "Enter root password (visible): " ROOT_PASSWORD
+    read -rp "Confirm root password: " ROOT_CONFIRM
+    if [[ "$ROOT_PASSWORD" != "$ROOT_CONFIRM" ]]; then
+        echo "Root passwords do not match. Try again."
+        select_credentials
+        return
+    fi
+    read -rp "Enter username: " USER_NAME
+    read -rp "Enter user password (visible): " USER_PASSWORD
+    read -rp "Confirm user password: " USER_CONFIRM
+    if [[ "$USER_PASSWORD" != "$USER_CONFIRM" ]]; then
+        echo "User passwords do not match. Try again."
+        select_credentials
+        return
+    fi
+}
+
 show_summary() {
-    echo
+    clear
     echo "Installation Summary"
     echo "--------------------"
     echo "Disk:           $DISK"
@@ -156,12 +164,16 @@ show_summary() {
     echo "Storage Layout: $STORAGE_LAYOUT"
     echo "Desktop:        $DESKTOP_ENV"
     echo "Features:       ${FEATURES[*]:-none}"
+    echo "Root password:  (visible) $ROOT_PASSWORD"
+    echo "User:           $USER_NAME"
+    echo "User password:  (visible) $USER_PASSWORD"
     echo
 }
 
 confirm_install() {
     local ans
     while true; do
+        flush_input
         read -rp "Proceed with installation? (yes/no) " ans
         case "$ans" in
             yes|y|Y) return 0 ;;
@@ -171,9 +183,6 @@ confirm_install() {
     done
 }
 
-# ============================================================
-# Partitioning logic
-# ============================================================
 partition_disk() {
     echo "=== Partitioning disk $DISK ==="
     parted -s "$DISK" mklabel gpt
@@ -228,9 +237,6 @@ mount_filesystems() {
     swapon "${DISK}2"
 }
 
-# ============================================================
-# Stage3 selection
-# ============================================================
 get_stage3_url() {
     if [[ "$INIT_SYSTEM" == "systemd" ]]; then
         echo "https://distfiles.gentoo.org/releases/amd64/autobuilds/latest-stage3-amd64-systemd.tar.xz"
@@ -258,9 +264,6 @@ prepare_chroot_mounts() {
     mount --make-rslave "$MOUNT/dev"
 }
 
-# ============================================================
-# make.conf generation
-# ============================================================
 generate_make_conf() {
     echo "=== Configuring make.conf ==="
     local video="virtio"
@@ -282,9 +285,6 @@ INPUT_DEVICES="libinput"
 EOF
 }
 
-# ============================================================
-# Desktop + features mapping
-# ============================================================
 desktop_packages() {
     case "$DESKTOP_ENV" in
         KDE\ Plasma\ \(X11\))
@@ -376,26 +376,18 @@ feature_packages() {
     done
     echo "${pkgs[*]}"
 }
-# ============================================================
-# Chroot installation
-# ============================================================
 run_chroot_install() {
-    echo "=== Entering chroot and installing system ==="
+    echo "=== Entering chroot and installing base system ==="
     chroot "$MOUNT" /bin/bash <<'CHROOTEOF'
 set -e
 source /etc/profile
 
-echo "=== Syncing Portage ==="
 emerge --sync
-
-echo "=== Installing kernel ==="
 emerge --ask=n sys-kernel/gentoo-kernel-bin
 
-echo "=== Setting timezone ==="
 echo "America/New_York" > /etc/timezone
 emerge --config sys-libs/timezone-data
 
-echo "=== Setting locale ==="
 echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen
 locale-gen
 eselect locale set en_US.utf8
@@ -403,9 +395,6 @@ eselect locale set en_US.utf8
 CHROOTEOF
 }
 
-# ============================================================
-# Chroot: desktop + features + bootloader + networking
-# ============================================================
 run_chroot_config_rest() {
     local desktop_pkgs feature_pkgs
     desktop_pkgs=$(desktop_packages)
@@ -415,17 +404,14 @@ run_chroot_config_rest() {
 set -e
 source /etc/profile
 
-echo "=== Installing desktop environment ==="
 if [[ -n "$desktop_pkgs" ]]; then
     emerge --ask=n $desktop_pkgs
 fi
 
-echo "=== Installing feature packages ==="
 if [[ -n "$feature_pkgs" ]]; then
     emerge --ask=n $feature_pkgs
 fi
 
-echo "=== Enabling services ==="
 if [[ "$INIT_SYSTEM" == "OpenRC" ]]; then
     if echo "${FEATURES[*]}" | grep -q "NetworkManager"; then
         rc-update add NetworkManager default
@@ -454,7 +440,6 @@ else
     fi
 fi
 
-echo "=== Bootloader installation ==="
 if echo "${FEATURES[*]}" | grep -q "GRUB EFI"; then
     emerge --ask=n sys-boot/grub sys-boot/efibootmgr
     grub-install --target=x86_64-efi --efi-directory=/boot
@@ -463,25 +448,20 @@ elif echo "${FEATURES[*]}" | grep -q "systemd-boot"; then
     bootctl install
 fi
 
-echo "=== Flatpak Flathub setup ==="
 if echo "${FEATURES[*]}" | grep -q "Flatpak + Flathub"; then
     flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
 fi
 
-echo "=== Setting root and user passwords ==="
-echo "root:11312" | chpasswd
-useradd -m -G wheel,audio,video tommy
-echo "tommy:11312" | chpasswd
+echo "root:${ROOT_PASSWORD}" | chpasswd
+useradd -m -G wheel,audio,video "${USER_NAME}"
+echo "${USER_NAME}:${USER_PASSWORD}" | chpasswd
 echo "%wheel ALL=(ALL) ALL" >> /etc/sudoers
 
 CHROOTEOF
 }
 
-# ============================================================
-# Unmount and finish
-# ============================================================
 cleanup_unmount() {
-    echo "=== Unmounting (Handbook-safe) ==="
+    echo "=== Unmounting ==="
     umount -l "$MOUNT/dev" || true
     umount -l "$MOUNT/sys" || true
     umount -l "$MOUNT/proc" || true
@@ -489,10 +469,9 @@ cleanup_unmount() {
     echo "=== Installation complete. You can reboot now. ==="
 }
 
-# ============================================================
-# Main installer flow
-# ============================================================
 run_install() {
+    clear
+    echo "=== Starting installation ==="
     partition_disk
     mount_filesystems
     generate_make_conf
@@ -505,13 +484,14 @@ run_install() {
 
 main_menu() {
     while true; do
-        echo
+        clear
         echo "Gentoo Universal Installer"
         echo "=========================="
         echo "1) Start new installation"
         echo "2) Exit"
+        flush_input
         read -rp "#? " choice
-            case "$choice" in
+        case "$choice" in
             1)
                 select_disk
                 select_machine_type
@@ -519,8 +499,8 @@ main_menu() {
                 select_storage_layout
                 select_desktop_env
                 select_optional_features
+                select_credentials
                 show_summary
-
                 if confirm_install; then
                     run_install
                 else
@@ -538,7 +518,4 @@ main_menu() {
     done
 }
 
-# ============================================================
-# Entry point
-# ============================================================
 main_menu
