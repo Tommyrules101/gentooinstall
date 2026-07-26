@@ -23,8 +23,7 @@ swapon ${DISK}2
 
 echo "=== Downloading Stage3 (systemd) ==="
 cd $MOUNT
-STAGE=$(curl -s https://www.gentoo.org/downloads/mirrors/ | grep -o 'https://.*stage3-amd64-systemd-.*tar.xz' | head -n 1)
-wget $STAGE -O stage3.tar.xz
+wget https://distfiles.gentoo.org/releases/amd64/autobuilds/20260719T170103Z/stage3-amd64-systemd-20260719T170103Z.tar.xz -O stage3.tar.xz
 tar xpvf stage3.tar.xz --xattrs-include='*.*' --numeric-owner
 
 echo "=== Configuring make.conf ==="
