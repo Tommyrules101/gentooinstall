@@ -13,6 +13,7 @@ USER_NAME=""
 USER_PASSWORD=""
 
 flush_input() {
+    # aggressively clear any buffered input (BusyBox-safe)
     read -r -N 999999 discard 2>/dev/null || true
 }
 
@@ -128,6 +129,7 @@ select_optional_features() {
 }
 
 select_credentials() {
+    echo
     echo "Credentials"
     echo "==========="
     read -rp "Enter root password (visible): " ROOT_PASSWORD
@@ -148,6 +150,7 @@ select_credentials() {
 }
 
 show_summary() {
+    echo
     echo "Installation Summary"
     echo "--------------------"
     echo "Disk:           $DISK"
@@ -174,6 +177,7 @@ confirm_install() {
         esac
     done
 }
+
 partition_disk() {
     echo "=== Partitioning disk $DISK ==="
     parted -s "$DISK" mklabel gpt
@@ -314,6 +318,7 @@ feature_packages() {
     done
     echo "${pkgs[*]}"
 }
+
 run_chroot_install() {
     echo "=== Entering chroot and installing base system ==="
     chroot "$MOUNT" /bin/bash <<'CHROOTEOF'
